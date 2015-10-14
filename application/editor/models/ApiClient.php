@@ -192,7 +192,7 @@ class Editor_Models_ApiClient
         }
                 //@TODO: implement language specific sort by using prefLabelSort@... Solr fields
                 $queryParams['sort'] = 'prefLabelSort asc';
-
+               
         $response = Api_Models_Concepts::factory()->setQueryParams($queryParams)->getConcepts($query);
         $response = $response['response'];
         $result = array();

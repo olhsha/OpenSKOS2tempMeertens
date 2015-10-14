@@ -442,40 +442,7 @@ class Editor_Models_ConceptScheme extends Api_Models_Concept
      */
     public static function buildIconPath($uuid, $tenant = null)
     {
-        $editorOptions = OpenSKOS_Application_BootstrapAccess::getBootstrap()->getOption('editor');
-        
-        if (null === $tenant) {
-            $tenant = OpenSKOS_Db_Table_Tenants::fromIdentity();
-        }
-        
-        // We always need tenant for getting icon path.
-        if (null !== $tenant) {
-            if (isset($editorOptions['schemeIcons']) && isset($editorOptions['schemeIcons']['assignPath'])) {
-                $iconsAssignPath = APPLICATION_PATH . $editorOptions['schemeIcons']['assignPath'] . '/' . $tenant->code;
-            } else {
-                $iconsAssignPath = APPLICATION_PATH . Editor_Forms_UploadIcon::DEFAULT_ASSIGN_PATH . '/' . $tenant->code;
-            }
-            
-            if (isset($editorOptions['schemeIcons']) && isset($editorOptions['schemeIcons']['assignHttpPath'])) {
-                $iconsAssignHttpPath = $editorOptions['schemeIcons']['assignHttpPath'] . '/' . $tenant->code;
-            } else {
-                $iconsAssignHttpPath = Editor_Forms_UploadIcon::DEFAULT_ASSIGN_HTTP_PATH . '/' . $tenant->code;
-            }
-            
-            if (isset($editorOptions['schemeIcons']) && isset($editorOptions['schemeIcons']['extension'])) {
-                $iconsExtension = $editorOptions['schemeIcons']['extension'];
-            } else {
-                $iconsExtension = 'png';
-            }
-            
-            if (is_file($iconsAssignPath . '/' . $uuid . '.' . $iconsExtension)) {
-                return $iconsAssignHttpPath . '/' . $uuid . '.' . $iconsExtension . '?nocache=' . time();
-            } else {
-                return '';
-            }
-        } else {
-            return '';
-        }
+        return \OpenSkos2\ConceptScheme::buildIconPath($uuid, $tenant);
     }
     
     /**

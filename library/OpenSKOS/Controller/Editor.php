@@ -1,15 +1,15 @@
 <?php
 
-/* 
+/*
  * OpenSKOS
- * 
+ *
  * LICENSE
- * 
+ *
  * This source file is subject to the GPLv3 license that is bundled
  * with this package in the file LICENSE.txt.
  * It is also available through the world-wide-web at this URL:
  * http://www.gnu.org/licenses/gpl-3.0.txt
- * 
+ *
  * @category   OpenSKOS
  * @package    OpenSKOS
  * @copyright  Copyright (c) 2015 Picturae (http://www.picturae.com)
@@ -61,7 +61,7 @@ class OpenSKOS_Controller_Editor extends Zend_Controller_Action {
 
     /**
      * Gets the current user.
-     * 
+     *
      * @return OpenSKOS_Db_Table_Row_User
      */
     public function getCurrentUser()
@@ -204,7 +204,7 @@ class OpenSKOS_Controller_Editor extends Zend_Controller_Action {
 
     /**
      * Check does the user have access to the specified resource with the specified privilege.
-     * 
+     *
      * @param string $resource
      * @param string $privilege, optional, Default: null
      * @param string $responseType, optional, Default: RESPONSE_TYPE_HTML. One of RESPONSE_TYPE_HTML, RESPONSE_TYPE_PARTIAL_HTML or RESPONSE_TYPE_JSON.
@@ -237,4 +237,34 @@ class OpenSKOS_Controller_Editor extends Zend_Controller_Action {
         }
     }
 
+    /**
+     * Get dependency injection container
+     *
+     * @return \DI\Container
+     */
+    public function getDI()
+    {
+       return Zend_Controller_Front::getInstance()->getDispatcher()->getContainer();
+    }
+
+    /**
+     * Get concept mananger
+     *
+     * @return \OpenSkos2\ConceptManager
+     */
+    public function getConceptManager()
+    {
+        return $this->getDI()->get('OpenSkos2\ConceptManager');
+    }
+
+    /**
+     * Emit PSR7 Response
+     *
+     * @param \Psr\Http\Message\ResponseInterface $response
+     */
+    public function emitResponse(\Psr\Http\Message\ResponseInterface $response)
+    {
+        (new \Zend\Diactoros\Response\SapiEmitter())->emit($response);
+        exit; // find better way to prevent output from zf1
+    }
 }
