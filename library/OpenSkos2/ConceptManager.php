@@ -99,17 +99,16 @@ class ConceptManager extends ResourceManager
     /**
      * Search from the editor
      *
+     * @todo Add search profile support see method: self::searchSpecific
      * @param string $term
      * @param array $searchOptions
      * @param int $rows amount of rows to return
-     * @param int $offset amount of offset     
+     * @param int $offset amount of offset
      * @return array
      */
     public function search($term, $searchOptions, $rows = 20, $offset = 0)
-    {        
+    {
         return $this->fullTextSearch($term, $rows, $offset);
-
-        //$this->searchSpecific($term, $searchOptions);
     }
 
     /**
@@ -213,7 +212,17 @@ class ConceptManager extends ResourceManager
         }
         return $items;
     }
-
+    
+    /**
+     * Search with search profile
+     *
+     * @todo Searching directly on sparql with group by is way to slow, discuss
+     * with stakeholders first before finishing this way, keep it for the moment for reference
+     * untill we have clear up what to do.
+     * @param type $term
+     * @param type $searchOptions
+     * @return type
+     */
     private function searchSpecific($term, $searchOptions)
     {
         $prefixes = [
@@ -259,7 +268,6 @@ class ConceptManager extends ResourceManager
             ->optional('?uri', 'skos:hiddenLabel', '?hiddenLabel')
             ->optional('?uri', 'skos:altLabel', '?altLabel')
             ->optional('?uri', 'skos:scopeNote', '?scopeNote')
-            ->filter('regex(str(?prefLabel), ' . $eTerm . ', "i") || regex(str(?altLabel), ' . $eTerm . ', "i")')
             ->groupBy('?prefLabel', '?uuid', '?uri', '?status')
             ->limit(20);
 
