@@ -41,14 +41,16 @@ class Search
      *
      * @param string $term
      * @param array  $searchOptions
+     * @param int $rows amount of rows to return
+     * @param int $offset start offset
      * @return \Psr\Http\Message\ResponseInterface
      */
-    public function getResponse($term, $searchOptions)
+    public function getResponse($term, $searchOptions, $rows, $offset)
     {
         $data = [
             'status' => 'ok',
-            'numFound' => 100,
-            'concepts' => $this->manager->search($term, $searchOptions),
+            //'numFound' => 100, // not possible with full text search result cannot go higher then 10000
+            'concepts' => $this->manager->search($term, $searchOptions, $rows, $offset),
             'conceptSchemeOptions' => [
                 [
                     'id' => 'http://data.cultureelerfgoed.nl/semnet/abstractebegrippen',

@@ -41,7 +41,17 @@ class Editor_SearchController extends OpenSKOS_Controller_Editor {
         
         $values = $searchForm->getValues();
         $options = $this->getSearchOptions($searchForm);
-        $response = $search->getResponse($values['searchText'], $options);
+        
+        $start = 0;
+        if (!empty($values['start'])) {
+            $start = (int)$values['start'];
+        }
+        $rows = 20;
+        if (!empty($values['rows']) && $values['rows'] < 1000) {
+            $rows = (int)$values['rows'];
+        }
+
+        $response = $search->getResponse($values['searchText'], $options, $rows, $start);
         $this->emitResponse($response);
     }
     

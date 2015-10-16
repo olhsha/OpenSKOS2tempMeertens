@@ -101,22 +101,25 @@ class ConceptManager extends ResourceManager
      *
      * @param string $term
      * @param array $searchOptions
+     * @param int $rows amount of rows to return
+     * @param int $offset amount of offset     
      * @return array
      */
-    public function search($term, $searchOptions)
-    {
-        return $this->fullTextSearch($term);
-        
+    public function search($term, $searchOptions, $rows = 20, $offset = 0)
+    {        
+        return $this->fullTextSearch($term, $rows, $offset);
+
         //$this->searchSpecific($term, $searchOptions);
     }
-    
+
     /**
      * Perform a full text search
      *
      * @param string $term
+     * #param int $offset
      * @return array
      */
-    private function fullTextSearch($term)
+    private function fullTextSearch($term, $rows = 20, $offset = 0)
     {
         // Add asparagus support see : https://github.com/Benestar/asparagus/issues/25
         $textQuery = "PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
@@ -125,25 +128,25 @@ class ConceptManager extends ResourceManager
 
             SELECT DISTINCT ?subject
             WHERE {
-                ?subject text:query (skos:prefLabel '$term' 10);
+                ?subject text:query (skos:prefLabel '$term');
             }
-            LIMIT 10";
-        
-        //echo $textQuery; exit;
+            LIMIT $rows
+            OFFSET $offset";
+
         $results = $this->query($textQuery);
-        
+
         if (!$results->numRows()) {
             return [];
         }
-        
+
         $conceptUri = [];
-                
+
         foreach ($results as $row) {
             $conceptUri[] = $row->subject->getUri();
         }
-        
+
         $conceptUris = Sparql\Escape::escapeUris($conceptUri);
-        
+
         // Add asparagus BIND support see: https://github.com/Benestar/asparagus/issues/26
         $query = '
             PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
@@ -151,19 +154,19 @@ class ConceptManager extends ResourceManager
             PREFIX dcterms: <http://purl.org/dc/terms/>
             PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
 
-            SELECT ?prefLabel ?uuid ?uri ?status 
+            SELECT ?prefLabel ?uuid ?uri ?status
                 (group_concat (
-                    distinct concat ("uri", 
-                        "'.$this->concatFieldSeperator.'", 
-                        str(?scheme), 
-                        "'.$this->concatSeperator.'", 
-                        "dcterms_title", 
-                        "'.$this->concatFieldSeperator.'", 
-                        ?schemeTitleb, 
-                        "'.$this->concatSeperator.'", 
-                        "uuid", 
-                        "'.$this->concatFieldSeperator.'", 
-                        ?schemeUuidb);separator = "'.$this->groupConcatSeperator.'") AS ?schemes) 
+                    distinct concat ("uri",
+                        "'.$this->concatFieldSeperator.'",
+                        str(?scheme),
+                        "'.$this->concatSeperator.'",
+                        "dcterms_title",
+                        "'.$this->concatFieldSeperator.'",
+                        ?schemeTitleb,
+                        "'.$this->concatSeperator.'",
+                        "uuid",
+                        "'.$this->concatFieldSeperator.'",
+                        ?schemeUuidb);separator = "'.$this->groupConcatSeperator.'") AS ?schemes)
             WHERE {
                     ?uri rdf:type skos:Concept ;
                             skos:prefLabel ?prefLabel ;
@@ -176,12 +179,12 @@ class ConceptManager extends ResourceManager
                             openskos:uuid ?schemeUuid .
                     }
                     FILTER (?uri IN ('.$conceptUris.'))
-              BIND ( IF (BOUND (?schemeUuid), ?schemeUuid, \'\')  as ?schemeUuidb) 
-              BIND ( IF (BOUND (?schemeTitle), ?schemeTitle, \'\')  as ?schemeTitleb) 
+              BIND ( IF (BOUND (?schemeUuid), ?schemeUuid, \'\')  as ?schemeUuidb)
+              BIND ( IF (BOUND (?schemeTitle), ?schemeTitle, \'\')  as ?schemeTitleb)
             }
             GROUP BY ?prefLabel ?uuid ?uri ?status
             LIMIT 20';
-               
+        
         $result = $this->query($query);
         $items = [];
         foreach ($result as $literal) {
@@ -210,7 +213,7 @@ class ConceptManager extends ResourceManager
         }
         return $items;
     }
-    
+
     private function searchSpecific($term, $searchOptions)
     {
         $prefixes = [
@@ -228,11 +231,11 @@ class ConceptManager extends ResourceManager
         $cs = $this->concatSeperator;
         $gcs = $this->groupConcatSeperator;
         $cfs = $this->concatFieldSeperator;
-        
+
         $filter = new \Asparagus\GraphBuilder(new \Asparagus\UsageValidator);
         $filter->where('?uri', 'skos:altLabel', '?altLabel')
                 ->filter("lang (?altLabel) = 'nl' || lang (?altLabel) = 'en' || lang (?altLabel) = 'fr'");
-        
+
         $query = $q->select([
                 '?prefLabel',
                 '?uuid',
@@ -259,10 +262,10 @@ class ConceptManager extends ResourceManager
             ->filter('regex(str(?prefLabel), ' . $eTerm . ', "i") || regex(str(?altLabel), ' . $eTerm . ', "i")')
             ->groupBy('?prefLabel', '?uuid', '?uri', '?status')
             ->limit(20);
-        
+
         $this->addFilters($term, $searchOptions, $query);
         $this->addLanguageFilters($searchOptions, $query);
-        
+
         //echo $query->format(); exit;
         $result = $this->query($query);
         $items = [];
@@ -292,7 +295,7 @@ class ConceptManager extends ResourceManager
         }
         return $items;
     }
-    
+
     /**
      * Get search filter
      * @param string $term
@@ -303,7 +306,7 @@ class ConceptManager extends ResourceManager
     private function addFilters($term, $searchOptions, QueryBuilder $qb)
     {
         $searchTerm = Sparql\Escape::escapeLiteral('^' . $term);
-        
+
         $allowedLabels = [
             'prefLabel',
             'altLabel',
@@ -324,7 +327,7 @@ class ConceptManager extends ResourceManager
 
         return $qb;
     }
-    
+
     /**
      * Add optional labels and the filter
      * @param type $searchOptions
