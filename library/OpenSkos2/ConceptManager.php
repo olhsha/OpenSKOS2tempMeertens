@@ -100,57 +100,96 @@ class ConceptManager extends ResourceManager
      * Search from the editor
      *
      * @param string $term
+     * @param array $searchOptions
      * @return array
      */
-    public function search($term)
+    public function search($term, $searchOptions)
     {
-        $prefixes = [
-            'skos' => Skos::NAME_SPACE,
-            'openskos' => OpenSkos::NAME_SPACE,
-            'dcterms' => Namespaces\DcTerms::NAME_SPACE,
-            'rdf' => Namespaces\Rdf::NAME_SPACE
-        ];
+        return $this->fullTextSearch($term);
+        
+        //$this->searchSpecific($term, $searchOptions);
+    }
+    
+    /**
+     * Perform a full text search
+     *
+     * @param string $term
+     * @return array
+     */
+    private function fullTextSearch($term)
+    {
+        // Add asparagus support see : https://github.com/Benestar/asparagus/issues/25
+        $textQuery = "PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+            prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+            PREFIX text: <http://jena.apache.org/text#>
 
-        $literalKey = new Literal('^' . $term);
-        $eTerm = (new NTriple())->serialize($literalKey);
+            SELECT DISTINCT ?subject
+            WHERE {
+                ?subject text:query (skos:prefLabel '$term' 10);
+            }
+            LIMIT 10";
+        
+        //echo $textQuery; exit;
+        $results = $this->query($textQuery);
+        
+        if (!$results->numRows()) {
+            return [];
+        }
+        
+        $conceptUri = [];
+                
+        foreach ($results as $row) {
+            $conceptUri[] = $row->subject->getUri();
+        }
+        
+        $conceptUris = Sparql\Escape::escapeUris($conceptUri);
+        
+        // Add asparagus BIND support see: https://github.com/Benestar/asparagus/issues/26
+        $query = '
+            PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+            PREFIX openskos: <http://openskos.org/xmlns#>
+            PREFIX dcterms: <http://purl.org/dc/terms/>
+            PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
 
-        $q = new QueryBuilder($prefixes);
-
-        $cs = $this->concatSeperator;
-        $gcs = $this->groupConcatSeperator;
-        $cfs = $this->concatFieldSeperator;
-
-        $query = $q->select([
-                '?prefLabel',
-                '?uuid',
-                '?uri',
-                '?status',
-                '(group_concat(distinct '
-                .       'concat('
-                .           '"uri", "' . $cfs . '", str(?scheme), "' . $cs . '",'
-                .           '"dcterms_title", "' . $cfs . '", ?schemeTitle, "' . $cs . '",'
-                .           '"uuid", "' . $cfs . '", ?schemeUuid'
-                .       ');separator="'.$gcs.'") AS ?schemes)',
-                '(group_concat(distinct ?scopeNote;separator="|") AS ?scopeNotes)'
-            ])
-            ->where('?uri', 'rdf:type', 'skos:Concept')
-            ->also('skos:prefLabel', '?prefLabel')
-            ->also('skos:altLabel', '?altLabel')
-            ->also('openskos:uuid', '?uuid')
-            ->also('openskos:status', '?status')
-            ->optional('?uri', 'skos:inScheme', '?scheme')
-            ->optional('?scheme', 'dcterms:title', '?schemeTitle')
-            ->optional('?scheme', 'openskos:uuid', '?schemeUuid')
-            ->optional('?uri', 'skos:scopeNote', '?scopeNote')
-            ->filter('regex(str(?prefLabel), ' . $eTerm . ', "i") || regex(str(?altLabel), ' . $eTerm . ', "i")')
-            ->groupBy('?prefLabel', '?uuid', '?uri', '?status')
-            ->limit(20);
-
-        //echo $query->format(); exit;
+            SELECT ?prefLabel ?uuid ?uri ?status 
+                (group_concat (
+                    distinct concat ("uri", 
+                        "'.$this->concatFieldSeperator.'", 
+                        str(?scheme), 
+                        "'.$this->concatSeperator.'", 
+                        "dcterms_title", 
+                        "'.$this->concatFieldSeperator.'", 
+                        ?schemeTitleb, 
+                        "'.$this->concatSeperator.'", 
+                        "uuid", 
+                        "'.$this->concatFieldSeperator.'", 
+                        ?schemeUuidb);separator = "'.$this->groupConcatSeperator.'") AS ?schemes) 
+            WHERE {
+                    ?uri rdf:type skos:Concept ;
+                            skos:prefLabel ?prefLabel ;
+                            openskos:uuid ?uuid ;
+                            openskos:status ?status ;
+                            skos:inScheme ?scheme .
+                    OPTIONAL {
+                        ?uri skos:inScheme ?scheme .
+                            ?scheme dcterms:title ?schemeTitle ;
+                            openskos:uuid ?schemeUuid .
+                    }
+                    FILTER (?uri IN ('.$conceptUris.'))
+              BIND ( IF (BOUND (?schemeUuid), ?schemeUuid, \'\')  as ?schemeUuidb) 
+              BIND ( IF (BOUND (?schemeTitle), ?schemeTitle, \'\')  as ?schemeTitleb) 
+            }
+            GROUP BY ?prefLabel ?uuid ?uri ?status
+            LIMIT 20';
+               
         $result = $this->query($query);
-
         $items = [];
         foreach ($result as $literal) {
+            $arrLit = (array)$literal;
+            if (empty($arrLit)) {
+                continue;
+            }
+
             $concept = [
                 'uri' => (string)$literal->uri,
                 'uuid' => (string)$literal->uuid,
@@ -172,6 +211,134 @@ class ConceptManager extends ResourceManager
         return $items;
     }
     
+    private function searchSpecific($term, $searchOptions)
+    {
+        $prefixes = [
+            'skos' => Skos::NAME_SPACE,
+            'openskos' => OpenSkos::NAME_SPACE,
+            'dcterms' => Namespaces\DcTerms::NAME_SPACE,
+            'rdf' => Namespaces\Rdf::NAME_SPACE
+        ];
+
+        $literalKey = new Literal('^' . $term);
+        $eTerm = (new NTriple())->serialize($literalKey);
+
+        $q = new QueryBuilder($prefixes);
+
+        $cs = $this->concatSeperator;
+        $gcs = $this->groupConcatSeperator;
+        $cfs = $this->concatFieldSeperator;
+        
+        $filter = new \Asparagus\GraphBuilder(new \Asparagus\UsageValidator);
+        $filter->where('?uri', 'skos:altLabel', '?altLabel')
+                ->filter("lang (?altLabel) = 'nl' || lang (?altLabel) = 'en' || lang (?altLabel) = 'fr'");
+        
+        $query = $q->select([
+                '?prefLabel',
+                '?uuid',
+                '?uri',
+                '?status',
+                '(group_concat(distinct '
+                .       'concat('
+                .           '"uri", "' . $cfs . '", str(?scheme), "' . $cs . '",'
+                .           '"dcterms_title", "' . $cfs . '", ?schemeTitle, "' . $cs . '",'
+                .           '"uuid", "' . $cfs . '", ?schemeUuid'
+                .       ');separator="'.$gcs.'") AS ?schemes)'
+            ])
+            ->where('?uri', 'rdf:type', 'skos:Concept')
+            ->also('skos:prefLabel', '?prefLabel')
+            ->also('openskos:uuid', '?uuid')
+            ->also('openskos:status', '?status')
+            ->also('?uri', 'skos:inScheme', '?scheme')
+            ->also('?scheme', 'dcterms:title', '?schemeTitle')
+            ->also('?scheme', 'openskos:uuid', '?schemeUuid')
+            ->optional($filter)
+            ->optional('?uri', 'skos:hiddenLabel', '?hiddenLabel')
+            ->optional('?uri', 'skos:altLabel', '?altLabel')
+            ->optional('?uri', 'skos:scopeNote', '?scopeNote')
+            ->filter('regex(str(?prefLabel), ' . $eTerm . ', "i") || regex(str(?altLabel), ' . $eTerm . ', "i")')
+            ->groupBy('?prefLabel', '?uuid', '?uri', '?status')
+            ->limit(20);
+        
+        $this->addFilters($term, $searchOptions, $query);
+        $this->addLanguageFilters($searchOptions, $query);
+        
+        //echo $query->format(); exit;
+        $result = $this->query($query);
+        $items = [];
+        foreach ($result as $literal) {
+            $arrLit = (array)$literal;
+            if (empty($arrLit)) {
+                continue;
+            }
+
+            $concept = [
+                'uri' => (string)$literal->uri,
+                'uuid' => (string)$literal->uuid,
+                'previewLabel' => (string)$literal->prefLabel,
+                'status' => (string)$literal->status
+            ];
+
+            if (isset($literal->schemes)) {
+                $schemes = $this->decodeConcat((string)$literal->schemes);
+                $concept['schemes'] = $this->addIconToScheme($schemes);
+            }
+
+            if (isset($literal->scopeNotes)) {
+                $concept['scopeNotes'] = explode('|', (string)$literal->scopeNotes);
+            }
+
+            $items[] = $concept;
+        }
+        return $items;
+    }
+    
+    /**
+     * Get search filter
+     * @param string $term
+     * @param array $searchOptions
+     * @param QueryBuilder $qb
+     * @return QueryBuilder
+     */
+    private function addFilters($term, $searchOptions, QueryBuilder $qb)
+    {
+        $searchTerm = Sparql\Escape::escapeLiteral('^' . $term);
+        
+        $allowedLabels = [
+            'prefLabel',
+            'altLabel',
+            'hiddenLabel'
+        ];
+
+        // Add filter for labels
+        $filter = '';
+        foreach ($searchOptions['label'] as $label) {
+            if (!in_array($label, $allowedLabels)) {
+                continue;
+            }
+            $filter .= 'regex(str(?'.$label.'), ' . $searchTerm . ', "i") || ';
+        }
+
+        $cleanFilter = substr($filter, 0, -4);
+        $qb->filter($cleanFilter);
+
+        return $qb;
+    }
+    
+    /**
+     * Add optional labels and the filter
+     * @param type $searchOptions
+     * @param QueryBuilder $qb
+     */
+    private function addLanguageFilters($searchOptions, QueryBuilder $qb)
+    {
+        $languages = Sparql\Escape::escapeLiterals($searchOptions['languages']);
+        foreach ($searchOptions['label'] as $label) {
+            $filter = '!bound(?'.$label.') || lang(?'.$label.') IN ('.$languages.')';
+            $qb->filter($filter);
+        }
+    }
+
     /**
      * Add icon path to schemes
      *

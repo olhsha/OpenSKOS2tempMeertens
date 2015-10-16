@@ -363,7 +363,7 @@ class ResourceManager
      * Execute raw query
      *
      * @param string $query
-     * @return \EasyRdf\Graph
+     * @return \EasyRdf\Graph|EasyRdf\Sparql\Result
      */
     public function query($query)
     {

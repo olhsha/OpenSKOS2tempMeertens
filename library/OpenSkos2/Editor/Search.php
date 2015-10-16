@@ -40,14 +40,15 @@ class Search
      * Get JSON Response for editor search
      *
      * @param string $term
+     * @param array  $searchOptions
      * @return \Psr\Http\Message\ResponseInterface
      */
-    public function getResponse($term)
+    public function getResponse($term, $searchOptions)
     {
         $data = [
             'status' => 'ok',
             'numFound' => 100,
-            'concepts' => $this->manager->search($term),
+            'concepts' => $this->manager->search($term, $searchOptions),
             'conceptSchemeOptions' => [
                 [
                     'id' => 'http://data.cultureelerfgoed.nl/semnet/abstractebegrippen',

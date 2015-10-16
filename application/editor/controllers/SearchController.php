@@ -21,8 +21,6 @@ class Editor_SearchController extends OpenSKOS_Controller_Editor {
     
     /**
      * Emit json response for search action
-     * 
-     * 
      */
     public function indexAction()
     {
@@ -41,9 +39,54 @@ class Editor_SearchController extends OpenSKOS_Controller_Editor {
         $manager = $this->getConceptManager();
         $search = new OpenSkos2\Editor\Search($manager);
         
-        $searchOptions = $searchForm->getValues();
-        $response = $search->getResponse($searchOptions['searchText']);
+        $values = $searchForm->getValues();
+        $options = $this->getSearchOptions($searchForm);
+        $response = $search->getResponse($values['searchText'], $options);
         $this->emitResponse($response);
+    }
+    
+    /**
+     * Get search options
+     * 
+     * @todo Refactor this to be something cleaner
+     * @param Editor_Forms_Search $form
+     * @return array
+     */
+    private function getSearchOptions(Editor_Forms_Search $form)
+    {
+        $userForSearch = $form->getUserForSearch();
+        $loggedUser = OpenSKOS_Db_Table_Users::requireFromIdentity();
+
+        $searchOptions = $form->getValues();
+        $detailedSearchOptions = $userForSearch->getSearchOptions(true);
+
+        // Change search profile if needed and allowed. Change concept schemes if needed.
+        if ($loggedUser['id'] == $userForSearch['id']) {
+            $profileId = $this->getRequest()->getParam('searchProfileId', '');
+
+            if ($detailedSearchOptions['searchProfileId'] != $profileId || !isset($detailedSearchOptions['searchProfileId'])) {
+                $this->_switchUserToSearchProfile($loggedUser, $profileId);
+                $detailedSearchOptions = $loggedUser->getSearchOptions();
+
+                // Reset allowedConceptScheme
+                if ($loggedUser->disableSearchProfileChanging) {
+                    $searchOptions['allowedConceptScheme'] = array();
+                }
+            } elseif ((!isset($searchOptions['conceptScheme']) || !isset($detailedSearchOptions['conceptScheme'])) || $searchOptions['conceptScheme'] != $detailedSearchOptions['conceptScheme']) {
+                if ($loggedUser->isAllowedToUseSearchProfile('custom')) {
+                    // Change concept schemes selection
+                    $detailedSearchOptions['searchProfileId'] = 'custom';
+                    if (isset($searchOptions['conceptScheme'])) {
+                        $detailedSearchOptions['conceptScheme'] = $searchOptions['conceptScheme'];
+                    } else {
+                        $detailedSearchOptions['conceptScheme'] = array();
+                    }
+
+                    $loggedUser->setSearchOptions($detailedSearchOptions);
+                }
+            }
+        }
+        return $detailedSearchOptions;
     }
 
 

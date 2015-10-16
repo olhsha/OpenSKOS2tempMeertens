@@ -39,9 +39,9 @@ var EditorView = new Class({
 
         Object.each(conceptData.schemes, function (scheme) {
             if (scheme.iconPath != '') {
-                var schemeHolder = new Element('img', {title: scheme.dcterms_title[0], alt: scheme.dcterms_title[0].substring(0, 2), src: scheme.iconPath});
+                var schemeHolder = new Element('img', {title: scheme.dcterms_title, alt: scheme.dcterms_title.substring(0, 2), src: scheme.iconPath});
             } else {
-                var schemeHolder = new Element('span', {text: '(' + scheme.dcterms_title[0].substring(0, 2) + ')'});
+                var schemeHolder = new Element('span', {text: '(' + scheme.dcterms_title.substring(0, 2) + ')'});
             }
             schemeHolder.addClass(scheme.uuid);
             headerEl.adopt(schemeHolder);
